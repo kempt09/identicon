@@ -1,0 +1,71 @@
+defmodule Identicon do
+
+  def new(input) do
+    input
+    |> hash
+    |> color
+    |> grid
+    |> filter_odds
+    |> pixel_map
+    |> build_image
+    |> save_image(input)
+  end
+
+  defp save_image(image, input) do
+    File.write("#{input}.png", image)
+  end
+
+  defp build_image(%Identicon.Image{color: color, pixels: pixels}) do
+      image = :egd.create(250, 250)
+      fill = :egd.color(color)
+      Enum.each pixels, fn({start, stop}) ->
+        :egd.filledRectangle(image, start, stop, fill)
+      end
+      :egd.render(image)
+  end
+
+  defp pixel_map(%Identicon.Image{grid: grid} = image) do
+    pixels = Enum.map grid, fn({_code, index}) ->
+      horizontal = rem(index, 5) * 50
+      vertical = div(index, 5) * 50
+      top_left = {horizontal, vertical}
+      bottom_right = {horizontal + 50, vertical + 50}
+      {top_left, bottom_right}
+    end
+    %Identicon.Image{image | pixels: pixels}
+  end
+
+  defp grid(%Identicon.Image{hex: hex} = image) do
+    grid =
+      hex
+      |> Enum.chunk(3)
+      |> Enum.map(&mirror/1)
+      |> List.flatten
+      |> Enum.with_index
+
+    %Identicon.Image{image | grid: grid}
+  end
+
+  defp filter_odds(%Identicon.Image{grid: grid} = image) do
+    grid = Enum.filter grid, fn({code, _index}) ->
+      rem(code, 2) == 0
+    end
+
+    %Identicon.Image{image | grid: grid}
+  end
+
+  defp mirror([a, b | _tail] = row) do
+    row ++ [b, a]
+  end
+
+  defp color(%Identicon.Image{hex: [r, g, b | _tail]} = image) do
+    %Identicon.Image{image | color: {r, g, b}}
+  end
+
+  defp hash(input) do
+    hex = :crypto.hash(:md5, input)
+    |> :binary.bin_to_list
+    %Identicon.Image{hex: hex}
+  end
+
+end
